@@ -1,0 +1,68 @@
+#!/bin/bash
+# Transcribe an audio file, or a WhatsApp voice note by its message id.
+#   hear <file> [lang]
+#   hear --wa <message_pk> [lang]
+set -e
+
+SELF="$(cd "$(dirname "$0")" && pwd)"
+DB="$HOME/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite"
+MEDIA="$HOME/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/Message"
+
+[ $# -lt 1 ] && { echo "usage: hear <file> [lang]   |   hear --wa <message_pk> [lang]"; exit 1; }
+
+WHO=""
+if [ "$1" = "--wa" ]; then
+  PK="${2:?message pk required}"
+  LANG="${3:-ur}"
+  REL=$(sqlite3 "file:${DB}?mode=ro" "SELECT mi.ZMEDIALOCALPATH FROM ZWAMESSAGE m JOIN ZWAMEDIAITEM mi ON mi.ZMESSAGE=m.Z_PK WHERE m.Z_PK=$PK;")
+  WHO=$(sqlite3 "file:${DB}?mode=ro" "SELECT s.ZPARTNERNAME FROM ZWAMESSAGE m JOIN ZWACHATSESSION s ON s.Z_PK=m.ZCHATSESSION WHERE m.Z_PK=$PK;")
+  [ -z "$REL" ] && { echo "message $PK has no media"; exit 1; }
+  SRC="$MEDIA/$REL"
+  [ -f "$SRC" ] || { echo "not downloaded yet: $SRC"; exit 1; }
+else
+  SRC="$1"
+  LANG="${2:-ur}"
+  [ -f "$SRC" ] || { echo "no such file: $SRC"; exit 1; }
+fi
+
+# find the key
+if [ -z "$CARTESIA_API_KEY" ]; then
+  [ -f "$HOME/.cartesia_key" ] && CARTESIA_API_KEY=$(cat "$HOME/.cartesia_key")
+  ENVF="$HOME/Desktop/Personal/beghumchat/wabot/.env"
+  [ -z "$CARTESIA_API_KEY" ] && [ -f "$ENVF" ] && CARTESIA_API_KEY=$(grep '^CARTESIA_API_KEY=' "$ENVF" | cut -d= -f2-)
+fi
+
+WAV="/tmp/hear_$$.wav"
+# quiet voice notes lose whole sentences without this level pass
+ffmpeg -y -loglevel error -i "$SRC" -af "loudnorm=I=-16:TP=-1.5:LRA=11" -ar 16000 -ac 1 "$WAV"
+
+[ -n "$WHO" ] && echo "=== voice note from [$WHO] ===" || echo "=== $(basename "$SRC") ==="
+
+if [ "$STT_ENGINE" = "local" ] || [ -z "$CARTESIA_API_KEY" ]; then
+  MODEL=""
+  for m in ggml-large-v3-turbo.bin ggml-medium.bin ggml-small.bin ggml-base.bin; do
+    [ -s "$SELF/../models/$m" ] && { MODEL="$SELF/../models/$m"; break; }
+  done
+  if [ -z "$MODEL" ] || ! command -v whisper-cli >/dev/null; then
+    rm -f "$WAV"
+    echo "(no Cartesia key, and no local whisper model in $SELF/../models)"
+    exit 1
+  fi
+  whisper-cli -m "$MODEL" -f "$WAV" -l "$LANG" -bs 5 -nt 2>/dev/null | sed '/^$/d'
+else
+  curl -s -X POST "https://api.cartesia.ai/stt" \
+    -H "X-API-Key: $CARTESIA_API_KEY" \
+    -H "Cartesia-Version: 2024-11-13" \
+    -F "file=@$WAV" -F "model=ink-whisper" -F "language=$LANG" \
+  | python3 -c "
+import sys, json, itertools
+try:
+    t = json.load(sys.stdin).get('text','').strip()
+except Exception:
+    print('(transcription service returned nothing usable)'); raise SystemExit
+# these models loop one word dozens of times at the end, that is not speech
+out = [w for w, _ in itertools.groupby(t.split())]
+print(' '.join(out) if out else '(empty transcript)')
+"
+fi
+rm -f "$WAV"
