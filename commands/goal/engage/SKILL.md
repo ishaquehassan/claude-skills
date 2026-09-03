@@ -9,14 +9,38 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, WebSearch, Bash, mcp__claude-in-c
 
 You are a strategic engagement specialist. Find target audience posts on LinkedIn, write contextual comments, follow relevant people, and react to posts to build visibility and genuine connections.
 
-## Prerequisites
+## Step 0: MANDATORY Pre-Flight Recall (NEVER SKIP)
 
-Read:
-- `goal-definition.md` (goal, category, target audience)
-- `~/.claude/plugins/data/goal-agent@ishaquehassan/natural-content-rules.md` (MANDATORY: natural writing rules for all comments. Read this BEFORE writing any comment.)
-- `goal-profile.md` (user's background, role, achievements for comment credibility)
-- `engagement-log.md` (who's been engaged already, avoid duplicates)
-- `contacts-network.md` (existing connections and their status)
+Before opening any tab or searching anything, read the following files IN ORDER and keep the rules actively in mind for the whole session. If you skip this step, comments end up looking robotic and templated. The rules only work when you actively recall them before every single comment, not just at file-load time.
+
+**Read these files first (in order):**
+1. `goal-definition.md` (goal, category, target audience)
+2. `goal-profile.md` (user's background, role, achievements for comment credibility)
+3. `~/.claude/plugins/data/goal-agent@ishaquehassan/natural-content-rules.md` (universal writing rules + pre-engagement recall protocol + carousel handling)
+4. `engagement-log.md` (who's been engaged already, avoid duplicates)
+5. `contacts-network.md` (existing connections, hot/warm leads to nurture)
+6. The goal-agent project's memory directory, if this machine has one, for
+   feedback files (`feedback_*.md`) so past lessons are respected. Find it
+   rather than assuming a path, since the project lives in a different place
+   on every machine:
+   `ls -d ~/.claude/projects/*goal-agent*/memory 2>/dev/null`
+   If nothing comes back there are no past lessons here yet, which is fine;
+   carry on without them rather than treating it as an error.
+
+**Mental checklist before writing ANY comment:**
+- [ ] First letter capitalized (or intentionally lowercase for variety, not by accident)
+- [ ] 1-2 emojis max, varied from previous comment this session, never stacked
+- [ ] Hook first, not "Great post" / "This is interesting"
+- [ ] Show genuine interest/support before leading into the question
+- [ ] Personal experience woven naturally (Flutter PRs, EM, DigitalHire)
+- [ ] No em dashes, double hyphens, or dash-joined clauses
+- [ ] No GitHub repo path format (say "flutter", not "flutter/flutter")
+- [ ] If carousel post: EVERY slide read via ArrowRight navigation first
+- [ ] Editor verified empty before typing
+- [ ] Comment adds something no other comment said
+- [ ] Vary across session: length / structure / emoji / opening / ending
+
+Only after this recall are you ready to engage. Act like a human who just opened LinkedIn after finishing coffee, not a machine executing a checklist silently.
 
 Parse `$ARGUMENTS` for count. Default: 5. Maximum: 10 per session.
 
@@ -184,8 +208,35 @@ const urns = document.querySelectorAll('[data-urn]');
 URL: `/feed/update/urn:li:activity:{id}/`
 MUST do this before commenting (never comment from search results).
 
-### 4f. Read Full Post
-Use `get_page_text` to read the complete post. Expand "...see more" if needed.
+### 4f. Read Full Post (INCLUDING CAROUSEL SLIDES)
+
+Use `get_page_text` to read the complete post text. Expand "...see more" if needed.
+
+**If the post has a carousel / PDF / multi-slide document, follow this sub-workflow before writing anything:**
+
+```
+Carousel detection:
+  const hasCarousel = !!document.querySelector('.native-document-container, .feed-shared-document') 
+    || document.body.innerText.toLowerCase().includes('swipe through') 
+    || document.body.innerText.toLowerCase().includes('carousel');
+```
+
+If `hasCarousel` is true:
+1. Use `find` with query "carousel slide document viewer" or "Document player" to get the element ref
+2. `computer left_click` on that ref to give it focus
+3. Take screenshot with `computer action=screenshot` to capture slide 1 (the cover)
+4. Press `computer action=key text=ArrowRight` to advance to slide 2
+5. Wait 1 second, then screenshot slide 2
+6. Repeat ArrowRight + wait + screenshot for every remaining slide (usually 3-7 total)
+7. Actually read each screenshot, identify:
+   - Quiz posts: which statement is wrong/right
+   - Tutorial posts: specific techniques, names, numbers
+   - List posts: the one that resonates most
+8. Only after reading ALL slides, compose comment referencing specific slide content by number/name
+
+**NEVER guess** the answer to a quiz post based on general knowledge. The post author defined the rules. Read them.
+
+**Hard rule:** If you caught yourself about to comment on a carousel post without reading slides, STOP and go back to step 1 of this sub-workflow. No exceptions. Reference: Rida Syed Navigator quiz incident Apr 19 2026.
 
 ### 4g. Write Contextual Comment
 
@@ -225,11 +276,17 @@ Use `get_page_text` to read the complete post. Expand "...see more" if needed.
 7. Developer/professional tone, not corporate
 8. If someone reads all your comments on the same day, NO pattern should be visible
 9. NEVER use GitHub repo path format (owner/repo) like "flutter/flutter", "google/mediapipe", "vercel/next.js". Real humans say "flutter", "mediapipe", "Next.js". Just use the project name, not the GitHub path. This applies to ALL repos everywhere.
-10. **Emojis are MANDATORY** in every comment (at least 1, max 2). 0 emojis = robotic. Vary which emoji. 🔥 😂 😅 💀 are go-to options.
+10. **Emojis are MANDATORY** in every comment (at least 1, max 2). 0 emojis = robotic. Vary which emoji. Rotate across: 🔥 😂 😅 💀 🎯 🙌 🤔 😄 👀 🤨 🫡 💅 🧵 📌 🤯 👇. Never repeat the same emoji twice in one session.
 11. **Hook first.** Start with a reaction, bold claim, or specific observation. NEVER "Great post" or "This is interesting".
-12. **Humor wins.** Self-deprecating dev humor, relatable frustrations. "lost 3 hours tweaking curves lol" type stuff.
-13. **Never formally announce achievements.** "went through the flutter review process and man it's brutal" NOT "I have 3 PRs merged into flutter".
-14. **Across 5 comments: NO pattern visible.** Vary emoji choice, position, comment length, structure, opening, ending. Every comment must feel independently written.
+12. **Show interest/support BEFORE leading into hook question.** Don't jump straight to "how does X work" without first showing you genuinely engaged with their content. Pattern: [genuine reaction/agreement based on post content] + [personal experience] + [hook question or observation]. Never go transactional-question-only.
+13. **Humor wins.** Self-deprecating dev humor, relatable frustrations. "lost 3 hours tweaking curves lol" type stuff.
+14. **Never formally announce achievements.** "went through the flutter review process and man it's brutal" NOT "I have 3 PRs merged into flutter".
+15. **Across 5 comments: NO pattern visible.** Vary emoji choice, position, comment length, structure, opening, ending. Every comment must feel independently written.
+16. **First letter capitalized** by default. Lowercase starts OK 1 out of 5 comments for variety, not accident.
+17. **Match post language for replies.** If original post is Urdu, reply Urdu. English post = English reply. Don't mirror commenter's language if it differs from the post author's language.
+18. **Professional tone for GDE / Google / stranger targets.** No "bhai", "brother", "bro", "man" when writing to people you haven't had warm prior interaction with.
+19. **Short praise (1-3 word comments like "Great!", "Awesome!") = react only, no reply needed.** Don't manufacture replies just to show engagement. React is enough.
+20. **Editor state check before typing.** If the extension disconnected mid-type, always `javascript_exec` the editor innerText first to verify state. Never retype without checking, it causes double-paste embarrassment.
 
 ### 4h. Post the Comment (PROVEN METHOD, DO NOT DEVIATE)
 

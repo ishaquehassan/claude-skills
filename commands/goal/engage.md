@@ -19,7 +19,13 @@ Before opening any tab or searching anything, read the following files IN ORDER 
 3. `~/.claude/plugins/data/goal-agent@ishaquehassan/natural-content-rules.md` (universal writing rules + pre-engagement recall protocol + carousel handling)
 4. `engagement-log.md` (who's been engaged already, avoid duplicates)
 5. `contacts-network.md` (existing connections, hot/warm leads to nurture)
-6. Memory directory `~/.claude/projects/-Users-ishaqhassan-Desktop-Personal-goal-agent/memory/` for feedback files (feedback_*.md) so past lessons are respected
+6. The goal-agent project's memory directory, if this machine has one, for
+   feedback files (`feedback_*.md`) so past lessons are respected. Find it
+   rather than assuming a path, since the project lives in a different place
+   on every machine:
+   `ls -d ~/.claude/projects/*goal-agent*/memory 2>/dev/null`
+   If nothing comes back there are no past lessons here yet, which is fine;
+   carry on without them rather than treating it as an error.
 
 **Mental checklist before writing ANY comment:**
 - [ ] First letter capitalized (or intentionally lowercase for variety, not by accident)
