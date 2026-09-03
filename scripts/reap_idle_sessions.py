@@ -47,7 +47,45 @@ def log(msg):
 
 
 def sessions():
-    """Live `claude` CLI sessions as (pid, rss_mb, cwd)."""
+    """Live `claude` CLI sessions as (pid, rss_mb, cwd).
+
+    Two backends. psutil, when importable, works identically on macOS, Linux
+    and Windows and is the only one of the two that can see native Windows
+    processes at all (Git Bash's ps stops at MSYS). Without psutil the original
+    ps+lsof path still serves POSIX, and Windows gets a clear message instead
+    of a silent empty list, because "no sessions found" and "cannot look" must
+    not read the same.
+    """
+    try:
+        import psutil
+    except ImportError:
+        psutil = None
+    if psutil is not None:
+        found = []
+        for pr in psutil.process_iter(["pid", "name", "cmdline", "memory_info"]):
+            try:
+                cmd = " ".join(pr.info["cmdline"] or [])
+                name = (pr.info["name"] or "").lower()
+                if "claude" not in name and "claude" not in cmd:
+                    continue
+                if ("stream-json" in cmd or "mcp-server" in cmd
+                        or "reap_idle" in cmd or "claude-mem" in cmd):
+                    continue
+                # the CLI itself, not every node child mentioning the word
+                if not (name.startswith("claude")
+                        or cmd.rstrip().endswith("claude")
+                        or " claude " in f" {cmd} "):
+                    continue
+                found.append((pr.info["pid"],
+                              pr.info["memory_info"].rss // (1024*1024),
+                              pr.cwd()))
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return found
+    if sys.platform == "win32":
+        log("ABORT: Windows pe psutil chahiye (pip install psutil), warna "
+            "native processes dikhte hi nahi")
+        return []
     out = subprocess.run(
         ["ps", "-axo", "pid=,rss=,command="], capture_output=True, text=True
     ).stdout
@@ -87,11 +125,25 @@ def last_human_turn(cwd):
     """Epoch seconds of the last message a person typed, or None."""
     if not cwd:
         return None
-    # Claude flattens both "/" and "_" to "-" when naming the project directory.
-    slug = cwd.replace("/", "-").replace("_", "-")
+    # Claude flattens path separators and "_" to "-" when naming the project
+    # directory. Rather than hand-maintaining per-OS rules for ":" and "\\",
+    # collapse every non-alphanumeric to "-" and, if that exact name is absent,
+    # look for a case-insensitive match. A miss returns None, and None is
+    # treated as "cannot tell", which never kills anything.
+    import re
+    slug = re.sub(r"[^A-Za-z0-9]", "-", cwd)
     d = PROJECTS / slug
     if not d.is_dir():
-        return None
+        d = None
+        try:
+            for cand in PROJECTS.iterdir():
+                if cand.name.lower() == slug.lower():
+                    d = cand
+                    break
+        except OSError:
+            return None
+        if d is None:
+            return None
     newest = None
     for f in d.glob("*.jsonl"):
         try:
